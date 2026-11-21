@@ -145,13 +145,17 @@ def simply_supported_dofs(mesh):
     return np.array([2 * lb, 2 * lb + 1, 2 * rb + 1], dtype=int)
 
 
-def center_patch_load(mesh, patch, load):
-    """Force vector: downward load spread over top-edge nodes +-patch/2 of center."""
+def center_patch_load(mesh, patch, load, y_load=None):
+    """Force vector: downward load spread over nodes at y=y_load within
+    +-patch/2 of center. y_load=None means the top edge (mesh.ly)."""
     n_dof = 2 * mesh.nodes.shape[0]
-    top = mesh.nodes[:, 1] == mesh.ly
+    if y_load is None:
+        y_load = mesh.ly
     half = patch / 2.0
     cx = mesh.lx / 2.0
-    nodes = np.where(top & (np.abs(mesh.nodes[:, 0] - cx) <= half))[0]
+    nodes = np.where(
+        (mesh.nodes[:, 1] == y_load) & (np.abs(mesh.nodes[:, 0] - cx) <= half)
+    )[0]
     f = np.zeros(n_dof)
     f[2 * nodes + 1] = -load / nodes.shape[0]
     return f

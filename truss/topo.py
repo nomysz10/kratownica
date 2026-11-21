@@ -67,7 +67,7 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
     H = _filter_matrix(mesh, rmin)
     Hs = np.asarray(H.sum(axis=1)).ravel()
 
-    # boundary conditions and load (patch center load, point supports)
+    # boundary conditions and load (top-edge patch load at center, point supports)
     fixed = simply_supported_dofs(mesh)
     f = center_patch_load(mesh, LOAD_PATCH, 1.0)
 

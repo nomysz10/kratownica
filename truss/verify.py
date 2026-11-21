@@ -13,12 +13,12 @@ from truss.fea import (
 from truss.postprocess import skeletonize_members
 
 
-def simulate_binary_shape(mesh, binary, E, nu, H, load, load_patch=LOAD_PATCH):
+def simulate_binary_shape(mesh, binary, E, nu, H, load, load_patch=LOAD_PATCH, y_load=None):
     """Run plane-stress FE on a binarized element field.
 
-    Void elements get E=1e-9*E. Load spread over top-edge nodes within
-    +-load_patch/2 of center; simply-supported at the two bottom corners.
-    Returns (u, von_mises).
+    Void elements get E=1e-9*E. Load spread over nodes at y=y_load (top edge
+    by default) within +-load_patch/2 of center; simply-supported at the two
+    bottom corners. Returns (u, von_mises).
     """
     b = np.asarray(binary, dtype=bool).ravel()
     E_eff = np.where(b, E, 1e-9 * E)
@@ -26,7 +26,7 @@ def simulate_binary_shape(mesh, binary, E, nu, H, load, load_patch=LOAD_PATCH):
     K = assemble_stiffness_variable(mesh, nu, H, E_eff)
 
     fixed = simply_supported_dofs(mesh)
-    f = center_patch_load(mesh, load_patch, load)
+    f = center_patch_load(mesh, load_patch, load, y_load=y_load)
 
     u = solve_linear(K, f, fixed)
 
@@ -36,12 +36,15 @@ def simulate_binary_shape(mesh, binary, E, nu, H, load, load_patch=LOAD_PATCH):
     return u, vm
 
 
-def center_deflection(u, mesh, center_x):
-    """Vertical deflection (mm) at the top-edge node nearest center_x."""
-    top = mesh.nodes[:, 1] == mesh.ly
-    top_nodes = np.where(top)[0]
-    x = mesh.nodes[top_nodes, 0]
-    idx = top_nodes[np.argmin(np.abs(x - center_x))]
+def center_deflection(u, mesh, center_x, y_load=None):
+    """Vertical deflection (mm) at the node at y=y_load (top edge by default)
+    nearest center_x."""
+    if y_load is None:
+        y_load = mesh.ly
+    row = mesh.nodes[:, 1] == y_load
+    row_nodes = np.where(row)[0]
+    x = mesh.nodes[row_nodes, 0]
+    idx = row_nodes[np.argmin(np.abs(x - center_x))]
     return abs(u[2 * idx + 1])
 
 
