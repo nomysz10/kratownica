@@ -117,4 +117,7 @@ def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size
                 on_case_done(res)
 
     valid = [r for r in results if r is not None]
-    return max(valid, key=lambda r: r.p_max) if valid else None
+    if not valid:
+        return None
+    # competition score = load / mass (N per gram), not raw load
+    return max(valid, key=lambda r: r.p_max / r.mass_g)

@@ -38,8 +38,9 @@ def main():
         if res is None:
             print("  (pominięto)")
             return
-        print(f"  D={res.D:.1f} H={res.H:.1f} -> p_max={res.p_max:.1f} N, masa={res.mass_g:.1f} g")
-        if best_box["res"] is None or res.p_max > best_box["res"].p_max:
+        print(f"  D={res.D:.1f} H={res.H:.1f} -> p_max={res.p_max:.1f} N, "
+              f"masa={res.mass_g:.1f} g, {res.p_max/res.mass_g:.2f} N/g")
+        if best_box["res"] is None or (res.p_max / res.mass_g) > (best_box["res"].p_max / best_box["res"].mass_g):
             best_box["res"] = res
             try:
                 write_report(res, os.path.join(args.out, "progress"))
