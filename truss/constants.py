@@ -28,4 +28,4 @@ BRACE_SPACING = 50.0    # mm (lateral-support spacing for out-of-plane buckling)
 
 # SIMP optimization
 SIMP_P = 3.0
-FILTER_RMIN = 2.0     # mm
+FILTER_RMIN = 7.5     # mm (3x element size — opens the fan of diagonals)
