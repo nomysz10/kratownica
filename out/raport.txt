@@ -1,0 +1,10 @@
+D = 105.00 mm
+H = 7.00 mm
+el_size = 2.50 mm
+mass_g = 147.89
+deflection_at_1N = 0.0044 mm
+p_max = 939.09 N
+p_ugiecie = 4553.61 N
+p_naprezenie = 939.09 N
+p_wyboczenie = 63512.46 N
+governs = naprezenie
