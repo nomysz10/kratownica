@@ -81,6 +81,52 @@ def assemble_stiffness(mesh, E, nu, thickness):
     return K.tocsr()
 
 
+def unit_element_stiffness(mesh, nu):
+    """Local Q4 stiffness (8,8) for E=1, thickness=1 (uniform square mesh)."""
+    coords = mesh.nodes[mesh.elements[0]]
+    D = _plane_stress_D(1.0, nu)
+    Ke = np.zeros((8, 8))
+    for xi, wx in zip(_GP, _GW):
+        for eta, wy in zip(_GP, _GW):
+            _, dN = _shape_functions(xi, eta)
+            J = dN.T @ coords
+            detJ = np.linalg.det(J)
+            Jinv = np.linalg.inv(J)
+            B = _B_matrix(dN, Jinv)
+            Ke += (B.T @ D @ B) * (detJ * wx * wy)
+    return Ke
+
+
+def assemble_stiffness_variable(mesh, nu, thickness, E_eff):
+    """Assemble K for per-element modulus E_eff (Nel,) using the uniform
+    square-element unit stiffness scaled per element."""
+    Ke0 = unit_element_stiffness(mesh, nu) * thickness
+    nel = mesh.elements.shape[0]
+    n_dof = 2 * mesh.nodes.shape[0]
+    dofs = np.stack([2 * mesh.elements, 2 * mesh.elements + 1], axis=-1).reshape(nel, 8)
+    rows = np.repeat(dofs[:, :, None], 8, axis=2).ravel()
+    cols = np.repeat(dofs[:, None, :], 8, axis=1).ravel()
+    data = (np.asarray(E_eff)[:, None, None] * Ke0[None, :, :]).ravel()
+    return sp.coo_matrix((data, (rows, cols)), shape=(n_dof, n_dof)).tocsr()
+
+
+def recover_stress_variable(mesh, u, nu, thickness, E_eff):
+    """Per-element stress tensor (Nel, 3) = (sxx, syy, sxy) at element centers."""
+    nel = mesh.elements.shape[0]
+    E_eff = np.asarray(E_eff)
+    stress = np.zeros((nel, 3))
+    for e, el in enumerate(mesh.elements):
+        coords = mesh.nodes[el]
+        ue = u[np.array([[2 * n, 2 * n + 1] for n in el]).ravel()]
+        D = _plane_stress_D(E_eff[e], nu)
+        _, dN = _shape_functions(0.0, 0.0)
+        J = dN.T @ coords
+        Jinv = np.linalg.inv(J)
+        B = _B_matrix(dN, Jinv)
+        stress[e] = D @ B @ ue
+    return stress
+
+
 def solve_linear(K, f, fixed_dofs):
     """Solve K u = f with prescribed zero displacement on fixed_dofs."""
     n = K.shape[0]

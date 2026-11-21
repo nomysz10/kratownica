@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.spatial import cKDTree
 
-from truss.fea import _B_matrix, _GP, _GW, _plane_stress_D, _shape_functions, solve_linear
+from truss.fea import solve_linear, unit_element_stiffness
 
 
 def _element_centers(mesh):
@@ -50,22 +50,6 @@ def heaviside_projection(x, beta, eta):
     return np.clip(y, 0.0, 1.0)
 
 
-def _unit_element_stiffness(mesh, nu):
-    """Local Q4 stiffness (8,8) for E=1, thickness=1 (uniform square mesh)."""
-    coords = mesh.nodes[mesh.elements[0]]
-    D = _plane_stress_D(1.0, nu)
-    Ke = np.zeros((8, 8))
-    for xi, wx in zip(_GP, _GW):
-        for eta, wy in zip(_GP, _GW):
-            _, dN = _shape_functions(xi, eta)
-            J = dN.T @ coords
-            detJ = np.linalg.det(J)
-            Jinv = np.linalg.inv(J)
-            B = _B_matrix(dN, Jinv)
-            Ke += (B.T @ D @ B) * (detJ * wx * wy)
-    return Ke
-
-
 def _node_index(mesh, x, y):
     d = np.abs(mesh.nodes[:, 0] - x) + np.abs(mesh.nodes[:, 1] - y)
     return int(np.argmin(d))
@@ -80,7 +64,7 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
     nel = mesh.elements.shape[0]
     n_dof = 2 * mesh.nodes.shape[0]
 
-    Ke0 = _unit_element_stiffness(mesh, nu)
+    Ke0 = unit_element_stiffness(mesh, nu)
 
     # global DOF triplet structure (Nel, 8) and COO indices (Nel,8,8)
     dofs = np.stack([2 * mesh.elements, 2 * mesh.elements + 1], axis=-1).reshape(nel, 8)

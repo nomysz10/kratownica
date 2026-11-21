@@ -1,0 +1,27 @@
+import numpy as np
+
+from truss.mesh import make_rect_mesh
+from truss.verify import euler_critical_load, evaluate_shape, member_axial_force
+
+
+def test_euler_weak_axis():
+    # w=10, H=4, L=100, E=2800: I = w*H^3/12 = 53.333 -> Pcr = 147.39 N
+    pcr = euler_critical_load(width=10.0, height=4.0, length=100.0, E=2800.0)
+    assert abs(pcr - 147.39) < 0.5
+
+
+def test_member_axial_force():
+    n = member_axial_force(axis=np.array([1.0, 0.0]),
+                           stress=np.array([10.0, 0.0, 0.0]),  # sxx=10 MPa
+                           width=10.0, height=4.0)
+    assert abs(n - 400.0) < 1e-9
+
+
+def test_solid_beam_load_limit():
+    m = make_rect_mesh(200.0, 10.0, 2.5)
+    binary = np.ones((m.ny, m.nx), dtype=bool)
+    r = evaluate_shape(m, binary, 2.5, 2800.0, 0.35, 1.0, 20.0, 1.5, 20.0)
+    # EB: δ(1N) = L^3/(48EI) = 0.7143 mm -> p_ugiecie = 20/0.7143 = 28.0 N
+    assert abs(r["p_ugiecie"] - 28.0) < 1.7
+    assert abs(r["mass_g"] - 200 * 10 * 1 * 1.24e-3) < 0.01
+    assert r["p_max"] == min(r["p_ugiecie"], r["p_naprezenie"], r["p_wyboczenie"])
