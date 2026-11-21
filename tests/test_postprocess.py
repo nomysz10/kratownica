@@ -5,6 +5,7 @@ from truss.postprocess import (
     keep_largest_component,
     min_feature_width,
     skeletonize_members,
+    smooth_binary,
 )
 
 
@@ -39,3 +40,15 @@ def test_skeleton_member():
     members = skeletonize_members(img, pixel_size=1.0)
     assert len(members) <= 3
     assert any(abs(m.length - 60.0) < 6.0 and 8.0 < m.width < 12.0 for m in members)
+
+
+def test_smooth_binary_upscales_and_rounds():
+    img = np.zeros((60, 60), dtype=bool)
+    img[25:35, 25:35] = True        # blok 10×10, z marginesem od brzegu
+    out = smooth_binary(img, factor=4)
+    assert out.shape == (240, 240)
+    # fillets (zaokrąglenie) lekko zmieniają pole; nie może się rozjechać
+    ratio = out.sum() / (4.0 * 4.0 * 100.0)
+    assert 0.85 < ratio < 1.1
+    # środek pozostaje wypełniony
+    assert out[120, 120]

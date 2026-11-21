@@ -13,12 +13,11 @@ from truss.fea import (
 from truss.postprocess import skeletonize_members
 
 
-def simulate_binary_shape(mesh, binary, E, nu, H, load):
+def simulate_binary_shape(mesh, binary, E, nu, H, load, load_patch=LOAD_PATCH):
     """Run plane-stress FE on a binarized element field.
 
-    Void elements get E=1e-9*E. Unit load spread over top-edge nodes within
-    +-LOAD_PATCH/2 of center; simply-supported with SUPPORT_PATCH-width
-    reactions at each end.
+    Void elements get E=1e-9*E. Load spread over top-edge nodes within
+    +-load_patch/2 of center; simply-supported at the two bottom corners.
     Returns (u, von_mises).
     """
     b = np.asarray(binary, dtype=bool).ravel()
@@ -27,7 +26,7 @@ def simulate_binary_shape(mesh, binary, E, nu, H, load):
     K = assemble_stiffness_variable(mesh, nu, H, E_eff)
 
     fixed = simply_supported_dofs(mesh)
-    f = center_patch_load(mesh, LOAD_PATCH, load)
+    f = center_patch_load(mesh, load_patch, load)
 
     u = solve_linear(K, f, fixed)
 
@@ -46,13 +45,13 @@ def center_deflection(u, mesh, center_x):
     return abs(u[2 * idx + 1])
 
 
-def _stress_peak_excluding_supports(mesh, vm):
+def _stress_peak_excluding_supports(mesh, vm, load_patch=LOAD_PATCH):
     """Peak von Mises with elements under the load and support patches excluded
     (avoids point-load / point-support stress singularities)."""
     centers = mesh.nodes[mesh.elements].mean(axis=1)
     cx = mesh.lx / 2.0
-    near_load = (np.abs(centers[:, 0] - cx) <= LOAD_PATCH / 2.0) & (
-        centers[:, 1] >= mesh.ly - LOAD_PATCH / 2.0
+    near_load = (np.abs(centers[:, 0] - cx) <= load_patch / 2.0) & (
+        centers[:, 1] >= mesh.ly - load_patch / 2.0
     )
     near_support = (
         (centers[:, 0] <= SUPPORT_PATCH / 2.0) | (centers[:, 0] >= mesh.lx - SUPPORT_PATCH / 2.0)
@@ -81,18 +80,19 @@ def member_axial_force(axis, stress, width, height):
     return sig_axial * width * height
 
 
-def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection):
+def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection,
+                   load_patch=LOAD_PATCH):
     """Load limits (N) and mass (g) for a thresholded shape.
 
     Returns dict with mass_g, deflection_at_1N, p_ugiecie, p_naprezenie,
-    p_wyboczenie, p_max, breakdown.
+    p_wyboczenie, p_max, breakdown, and visualization fields (u, vm, members).
     """
     b = np.asarray(binary, dtype=bool)
-    u, vm = simulate_binary_shape(mesh, b, E, nu, H, load=1.0)
+    u, vm = simulate_binary_shape(mesh, b, E, nu, H, load=1.0, load_patch=load_patch)
 
     delta = center_deflection(u, mesh, mesh.lx / 2.0)
     p_ugiecie = max_deflection / delta
-    p_naprezenie = sigma_allow / _stress_peak_excluding_supports(mesh, vm)
+    p_naprezenie = sigma_allow / _stress_peak_excluding_supports(mesh, vm, load_patch)
 
     # mass
     area_px = pixel_size ** 2
@@ -104,6 +104,7 @@ def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_defl
     centers = mesh.nodes[mesh.elements].mean(axis=1)
 
     p_wyboczenie = np.inf
+    member_data = []
     for m in members:
         if m.length <= 0 or m.width <= 0:
             continue
@@ -114,8 +115,16 @@ def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_defl
         for pt in m.points[:: max(1, len(m.points) // 8)]:
             e = int(np.argmin(np.linalg.norm(centers - pt, axis=1)))
             n_unit = min(n_unit, member_axial_force(axis, stress[e], m.width, H))
+        p_cr = euler_critical_load(m.width, H, m.length, E)
+        member_data.append({
+            "points": m.points,
+            "width": m.width,
+            "length": m.length,
+            "n_unit": n_unit,
+            "p_cr": p_cr,
+            "is_compression": n_unit < 0.0,
+        })
         if n_unit < 0.0:  # compression
-            p_cr = euler_critical_load(m.width, H, m.length, E)
             p_member = p_cr / (sf * abs(n_unit))
             p_wyboczenie = min(p_wyboczenie, p_member)
 
@@ -131,4 +140,7 @@ def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_defl
         "p_wyboczenie": p_wyboczenie,
         "p_max": p_max,
         "breakdown": {**limits, "governs": governing},
+        "u": u,
+        "vm": vm,
+        "members": member_data,
     }

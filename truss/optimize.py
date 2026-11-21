@@ -10,7 +10,7 @@ from truss.mesh import make_rect_mesh
 from truss.postprocess import (
     enforce_min_width,
     keep_largest_component,
-    skeletonize_members,
+    smooth_binary,
     threshold_binary,
 )
 from truss.topo import topology_optimize
@@ -21,18 +21,22 @@ from truss.verify import evaluate_shape
 class Result:
     D: float
     H: float
-    el_size: float
+    el_size: float          # verification-mesh element size (el_size/factor)
     rho: np.ndarray
-    binary: np.ndarray
+    binary: np.ndarray      # smoothed, filleted verification geometry
+    mesh: object            # verification mesh (Mesh)
     p_max: float
     mass_g: float
     deflection_at_1N: float
     breakdown: dict
-    members: list
+    members: list           # per-member dicts with n_unit, p_cr, is_compression
+    u: np.ndarray           # displacement field at unit load
+    vm: np.ndarray          # per-element von Mises at unit load
     compliance_history: np.ndarray
 
 
-def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size, max_iter=60):
+def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size,
+                     max_iter=60, smooth_factor=4):
     """Sweep (D, H), run SIMP + post-process + verify, return best Result."""
     mass_mm3 = max_mass_g / C.RHO_PLA
     rmin = max(C.FILTER_RMIN, 1.5 * el_size)
@@ -68,20 +72,20 @@ def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size
             if not binary.any():
                 continue
 
-            # verify on a refined (2x) mesh, per spec step 5
-            fine = np.repeat(np.repeat(binary, 2, axis=0), 2, axis=1)
-            mesh_fine = make_rect_mesh(span, D, el_size / 2.0)
+            # fillet + refine: upscale+smooth so stress at joints is resolved
+            fine = smooth_binary(binary, factor=smooth_factor)
+            el_fine = el_size / smooth_factor
+            mesh_fine = make_rect_mesh(span, D, el_fine)
             r = evaluate_shape(
-                mesh_fine, fine, el_size / 2.0, C.E, C.NU, H,
+                mesh_fine, fine, el_fine, C.E, C.NU, H,
                 C.SIGMA_ALLOW, C.SAFETY_FACTOR, max_deflection,
             )
             res = Result(
-                D=D, H=H, el_size=el_size, rho=rho, binary=binary,
+                D=D, H=H, el_size=el_fine, rho=rho, binary=fine, mesh=mesh_fine,
                 p_max=r["p_max"], mass_g=r["mass_g"],
                 deflection_at_1N=r["deflection_at_1N"],
-                breakdown=r["breakdown"],
-                members=skeletonize_members(fine, el_size / 2.0),
-                compliance_history=hist,
+                breakdown=r["breakdown"], members=r["members"],
+                u=r["u"], vm=r["vm"], compliance_history=hist,
             )
             if best is None or res.p_max > best.p_max:
                 best = res

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import distance_transform_edt, gaussian_filter, zoom
 from skimage.morphology import binary_dilation, skeletonize
 from skimage.measure import find_contours, label, regionprops
 
@@ -51,6 +51,21 @@ def extract_contours(binary, pixel_size):
     """Closed polygons (N,2) mm for each contour at the 0/1 boundary."""
     polys = find_contours(binary.astype(float), 0.5)
     return [np.column_stack([p[:, 1], p[:, 0]]) * pixel_size for p in polys]
+
+
+def smooth_binary(binary, factor=4, sigma=None):
+    """Upscale + Gaussian-smooth + re-threshold a binary mask.
+
+    Rounds sharp corners into fillets (so stress at joints is not a mesh
+    artifact) and returns a (factor*ny, factor*nx) boolean mask. sigma is in
+    fine-pixel units; default factor/2 gives a radius of ~half an input pixel.
+    """
+    b = np.asarray(binary, dtype=float)
+    up = zoom(b, factor, order=1)
+    if sigma is None:
+        sigma = factor / 2.0
+    sm = gaussian_filter(up, sigma)
+    return sm >= 0.5
 
 
 @dataclass

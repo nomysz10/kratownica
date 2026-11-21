@@ -26,7 +26,8 @@ def test_member_axial_force():
 def test_solid_beam_load_limit():
     m = make_rect_mesh(200.0, 10.0, 2.5)
     binary = np.ones((m.ny, m.nx), dtype=bool)
-    r = evaluate_shape(m, binary, 2.5, 2800.0, 0.35, 1.0, 20.0, 1.5, 20.0)
+    # load_patch=2.5 -> single center node, so EB point-load formula holds
+    r = evaluate_shape(m, binary, 2.5, 2800.0, 0.35, 1.0, 20.0, 1.5, 20.0, load_patch=2.5)
     # EB: δ(1N) = L^3/(48EI) = 0.7143 mm -> p_ugiecie = 20/0.7143 = 28.0 N
     assert abs(r["p_ugiecie"] - 28.0) < 1.7
     assert abs(r["mass_g"] - 200 * 10 * 1 * 1.24e-3) < 0.01
