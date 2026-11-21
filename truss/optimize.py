@@ -62,30 +62,26 @@ def _eval_case(case):
         binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
 
-    # hard mass constraint: erode if the min-width dilation overshot
-    mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
-    while mass_g > max_mass_g:
-        binary = binary_erosion(binary)
-        if deck_load:
-            binary[:deck_rows, :] = True   # protect the deck from erosion
-        binary = keep_largest_component(binary)
-        if deck_load:
-            binary[:deck_rows, :] = True
-        if not binary.any():
-            return None
-        mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
-
-    # restore 4 mm min width after erosion (erosion thins members; 4 mm is hard)
-    binary[truss_sl] = enforce_min_width(binary[truss_sl], el_size, C.MIN_WIDTH)
-    if deck_load:
-        binary[:deck_rows, :] = True
-    binary = keep_largest_component(binary)
-
     # fillet + refine: upscale + closing (extensive — never removes/thins)
     fine = smooth_binary(binary, factor=smooth_factor)
     el_fine = el_size / smooth_factor
+    deck_fine_rows = deck_rows * smooth_factor
     if deck_load:
-        fine[:deck_rows * smooth_factor, :] = True  # solid deck in fine grid too
+        fine[:deck_fine_rows, :] = True  # solid deck in fine grid too
+
+    # mass constraint on the FINE grid (0.625 mm/layer — gentle, doesn't sever
+    # 4 mm members). Erosion is capped: the 4 mm floor is the real limit.
+    mass_f = fine.sum() * el_fine ** 2 * H * C.RHO_PLA
+    while mass_f > max_mass_g:
+        fine = binary_erosion(fine)
+        if deck_load:
+            fine[:deck_fine_rows, :] = True   # protect the deck
+        fine = keep_largest_component(fine)
+        if deck_load:
+            fine[:deck_fine_rows, :] = True
+        if not fine.any():
+            return None
+        mass_f = fine.sum() * el_fine ** 2 * H * C.RHO_PLA
 
     mesh_fine = make_rect_mesh(span, D, el_fine)
     r = evaluate_shape(

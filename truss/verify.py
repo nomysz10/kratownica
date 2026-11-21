@@ -84,13 +84,15 @@ def member_axial_force(axis, stress, width, height):
 
 
 def compression_buckling_load(width, height, E, brace_spacing):
-    """Out-of-plane Euler buckling load (N) of a compression member.
+    """Out-of-plane (lateral) Euler buckling load (N) of a compression member.
 
-    Buckling length is the transverse-bracing spacing (lateral supports), not
-    the short in-plane member segment. Weak axis is min(width,height)^3*max/12,
-    so the out-of-plane height H enters as H^3 — thick H greatly helps.
+    The member bows OUT of the print plane, so the moment of inertia is about
+    the in-plane axis: I = width * height^3 / 12 (width = in-plane member
+    width, height = out-of-plane thickness H). Buckling length is the
+    transverse-bracing spacing. H enters as H^3 — thick H greatly helps.
     """
-    return euler_critical_load(width, height, brace_spacing, E)
+    I = width * height ** 3 / 12.0
+    return np.pi ** 2 * E * I / brace_spacing ** 2
 
 
 def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection,
