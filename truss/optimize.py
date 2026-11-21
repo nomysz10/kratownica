@@ -51,13 +51,6 @@ def _eval_case(case):
     binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
     deck_load = y_load is not None and y_load == 0.0
     deck_rows = 1  # jezdnia = osobny cienki element wklejany (nie dotyczy go 4 mm)
-    truss_sl = slice(deck_rows, None) if deck_load else slice(None)
-    if deck_load:
-        binary[:deck_rows, :] = True
-    binary = keep_largest_component(binary)
-
-    # enforce 4 mm min width on the TRUSS only (deck is a separate thin piece)
-    binary[truss_sl] = enforce_min_width(binary[truss_sl], el_size, C.MIN_WIDTH)
     if deck_load:
         binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
@@ -82,6 +75,13 @@ def _eval_case(case):
         if not fine.any():
             return None
         mass_f = fine.sum() * el_fine ** 2 * H * C.RHO_PLA
+
+    # enforce 4 mm min width on the TRUSS (above deck) as the LAST geometry step
+    # — 4 mm is a hard print floor; final mass may exceed the budget slightly.
+    fine[deck_fine_rows:] = enforce_min_width(fine[deck_fine_rows:], el_fine, C.MIN_WIDTH)
+    if deck_load:
+        fine[:deck_fine_rows, :] = True
+    fine = keep_largest_component(fine)
 
     mesh_fine = make_rect_mesh(span, D, el_fine)
     r = evaluate_shape(
