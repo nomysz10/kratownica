@@ -51,12 +51,13 @@ def _eval_case(case):
     binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
     deck_load = y_load is not None and y_load == 0.0
     deck_rows = 1  # jezdnia = osobny cienki element wklejany (nie dotyczy go 4 mm)
+    truss_sl = slice(deck_rows, None) if deck_load else slice(None)
     if deck_load:
         binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
 
-    # enforce 4 mm min width on the COARSE grid (closing below never thins)
-    binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
+    # enforce 4 mm min width on the TRUSS only (deck is a separate thin piece)
+    binary[truss_sl] = enforce_min_width(binary[truss_sl], el_size, C.MIN_WIDTH)
     if deck_load:
         binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
@@ -73,6 +74,12 @@ def _eval_case(case):
         if not binary.any():
             return None
         mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
+
+    # restore 4 mm min width after erosion (erosion thins members; 4 mm is hard)
+    binary[truss_sl] = enforce_min_width(binary[truss_sl], el_size, C.MIN_WIDTH)
+    if deck_load:
+        binary[:deck_rows, :] = True
+    binary = keep_largest_component(binary)
 
     # fillet + refine: upscale + closing (extensive — never removes/thins)
     fine = smooth_binary(binary, factor=smooth_factor)
