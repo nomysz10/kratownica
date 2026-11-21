@@ -28,12 +28,12 @@ def _edt(binary):
 
 
 def min_feature_width(binary, pixel_size):
-    """Minimum member width (mm): 2 * max distance-transform along skeleton."""
+    """Minimum member width (mm): 2 * min distance-transform along skeleton."""
     if not binary.any():
         return 0.0
     skel = skeletonize(binary)
     dt = _edt(binary)
-    return 2.0 * dt[skel].max() * pixel_size
+    return 2.0 * dt[skel].min() * pixel_size
 
 
 def enforce_min_width(binary, pixel_size, min_mm):

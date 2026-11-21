@@ -15,6 +15,15 @@ def test_min_width_enforced():
     assert min_feature_width(out, 1.0) >= 4.0
 
 
+def test_min_width_measures_thinnest_member():
+    img = np.zeros((100, 100), dtype=bool)
+    img[:, 10:12] = True            # pręt 2 mm
+    img[:, 40:48] = True            # pręt 8 mm
+    assert min_feature_width(img, 1.0) < 4.0      # mierzy najcieńszy, nie najgrubszy
+    out = enforce_min_width(img, pixel_size=1.0, min_mm=4.0)
+    assert min_feature_width(out, 1.0) >= 4.0
+
+
 def test_largest_component():
     img = np.zeros((50, 50), dtype=bool)
     img[10:40, 10:40] = True        # główny blok

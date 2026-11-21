@@ -10,6 +10,12 @@ def test_euler_weak_axis():
     assert abs(pcr - 147.39) < 0.5
 
 
+def test_euler_in_plane_weak_axis():
+    # w=4, H=8, L=100, E=2800: H>w -> I = H*w^3/12 = 42.667 -> Pcr = 117.92 N
+    pcr = euler_critical_load(width=4.0, height=8.0, length=100.0, E=2800.0)
+    assert abs(pcr - 117.92) < 0.5
+
+
 def test_member_axial_force():
     n = member_axial_force(axis=np.array([1.0, 0.0]),
                            stress=np.array([10.0, 0.0, 0.0]),  # sxx=10 MPa

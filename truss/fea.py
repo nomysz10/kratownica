@@ -136,6 +136,27 @@ def solve_linear(K, f, fixed_dofs):
     return u
 
 
+def simply_supported_dofs(mesh):
+    """Fixed DOFs for a simply-supported beam: left bottom corner pinned
+    (ux=uy=0), right bottom corner roller (uy=0)."""
+    n_dof = 2 * mesh.nodes.shape[0]
+    lb = int(np.argmin(mesh.nodes[:, 0] + mesh.nodes[:, 1]))
+    rb = int(np.argmin(np.abs(mesh.nodes[:, 0] - mesh.lx) + mesh.nodes[:, 1]))
+    return np.array([2 * lb, 2 * lb + 1, 2 * rb + 1], dtype=int)
+
+
+def center_patch_load(mesh, patch, load):
+    """Force vector: downward load spread over top-edge nodes +-patch/2 of center."""
+    n_dof = 2 * mesh.nodes.shape[0]
+    top = mesh.nodes[:, 1] == mesh.ly
+    half = patch / 2.0
+    cx = mesh.lx / 2.0
+    nodes = np.where(top & (np.abs(mesh.nodes[:, 0] - cx) <= half))[0]
+    f = np.zeros(n_dof)
+    f[2 * nodes + 1] = -load / nodes.shape[0]
+    return f
+
+
 def compliance(u, f):
     """Compliance = f^T u."""
     return float(f @ u)

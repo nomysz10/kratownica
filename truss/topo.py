@@ -1,10 +1,16 @@
-"""Density filter, Heaviside projection, and SIMP topology optimization."""
+"""Density filter and SIMP topology optimization."""
 
 import numpy as np
 import scipy.sparse as sp
 from scipy.spatial import cKDTree
 
-from truss.fea import solve_linear, unit_element_stiffness
+from truss.constants import LOAD_PATCH
+from truss.fea import (
+    center_patch_load,
+    simply_supported_dofs,
+    solve_linear,
+    unit_element_stiffness,
+)
 
 
 def _element_centers(mesh):
@@ -42,24 +48,11 @@ def density_filter(x, mesh, rmin):
     return np.asarray(H @ x).ravel() / Hs
 
 
-def heaviside_projection(x, beta, eta):
-    """Smoothed Heaviside projection (0..1)."""
-    y = (np.tanh(beta * eta) + np.tanh(beta * (x - eta))) / (
-        np.tanh(beta * eta) + np.tanh(beta * (1 - eta))
-    )
-    return np.clip(y, 0.0, 1.0)
-
-
-def _node_index(mesh, x, y):
-    d = np.abs(mesh.nodes[:, 0] - x) + np.abs(mesh.nodes[:, 1] - y)
-    return int(np.argmin(d))
-
-
 def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
     """SIMP + OC. Returns (rho, compliance_history).
 
-    Simply-supported: left bottom corner pinned, right bottom corner roller,
-    unit downward load at center of the top edge.
+    Simply-supported with patch supports and a unit downward patch load at
+    center of the top edge.
     """
     nel = mesh.elements.shape[0]
     n_dof = 2 * mesh.nodes.shape[0]
@@ -74,13 +67,9 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
     H = _filter_matrix(mesh, rmin)
     Hs = np.asarray(H.sum(axis=1)).ravel()
 
-    # boundary conditions and load
-    lb = _node_index(mesh, 0.0, 0.0)
-    rb = _node_index(mesh, mesh.lx, 0.0)
-    ct = _node_index(mesh, mesh.lx / 2.0, mesh.ly)
-    fixed = np.array([2 * lb, 2 * lb + 1, 2 * rb + 1])
-    f = np.zeros(n_dof)
-    f[2 * ct + 1] = -1.0
+    # boundary conditions and load (patch center load, point supports)
+    fixed = simply_supported_dofs(mesh)
+    f = center_patch_load(mesh, LOAD_PATCH, 1.0)
 
     x = np.full(nel, volfrac)
     E_min = 1e-9 * E

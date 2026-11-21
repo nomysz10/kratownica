@@ -55,19 +55,24 @@ def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size
             binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
             binary = keep_largest_component(binary)
             binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
+            binary = keep_largest_component(binary)
 
-            # enforce hard mass constraint (erode if the dilation overshot)
+            # hard mass constraint: erode if the min-width dilation overshot
             mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
             while mass_g > max_mass_g:
                 binary = binary_erosion(binary)
+                binary = keep_largest_component(binary)
                 if not binary.any():
                     break
                 mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
             if not binary.any():
                 continue
 
+            # verify on a refined (2x) mesh, per spec step 5
+            fine = np.repeat(np.repeat(binary, 2, axis=0), 2, axis=1)
+            mesh_fine = make_rect_mesh(span, D, el_size / 2.0)
             r = evaluate_shape(
-                mesh, binary, el_size, C.E, C.NU, H,
+                mesh_fine, fine, el_size / 2.0, C.E, C.NU, H,
                 C.SIGMA_ALLOW, C.SAFETY_FACTOR, max_deflection,
             )
             res = Result(
@@ -75,7 +80,7 @@ def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size
                 p_max=r["p_max"], mass_g=r["mass_g"],
                 deflection_at_1N=r["deflection_at_1N"],
                 breakdown=r["breakdown"],
-                members=skeletonize_members(binary, el_size),
+                members=skeletonize_members(fine, el_size / 2.0),
                 compliance_history=hist,
             )
             if best is None or res.p_max > best.p_max:

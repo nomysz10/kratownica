@@ -5,10 +5,8 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 
-from truss.postprocess import extract_contours
-from truss.stl import extrude_contour_to_triangles, write_binary_stl
+from truss.stl import extrude_binary_to_triangles, write_binary_stl
 
 
 def write_report(result, outdir):
@@ -29,12 +27,9 @@ def write_report(result, outdir):
     fig.savefig(png_path, dpi=120)
     plt.close(fig)
 
-    # STL: largest contour extruded by H
-    contours = extract_contours(result.binary, result.el_size)
-    if contours:
-        largest = max(contours, key=len)
-        tris = extrude_contour_to_triangles(largest, result.H)
-        write_binary_stl(stl_path, tris)
+    # STL: voxel-extrude the material region (holes preserved)
+    tris = extrude_binary_to_triangles(result.binary, result.el_size, result.H)
+    write_binary_stl(stl_path, tris)
 
     # text summary
     b = result.breakdown
