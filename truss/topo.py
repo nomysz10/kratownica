@@ -7,6 +7,7 @@ from scipy.spatial import cKDTree
 from truss.constants import LOAD_PATCH
 from truss.fea import (
     center_patch_load,
+    recover_stress_variable,
     simply_supported_dofs,
     solve_linear,
     unit_element_stiffness,
@@ -48,15 +49,38 @@ def density_filter(x, mesh, rmin):
     return np.asarray(H @ x).ravel() / Hs
 
 
+def _node_index(mesh, x, y):
+    d = np.abs(mesh.nodes[:, 0] - x) + np.abs(mesh.nodes[:, 1] - y)
+    return int(np.argmin(d))
+
+
+def _axial_compression(mesh, u, nu, x_phys, p, E_min, E):
+    """Minimum principal stress per element (negative where compressed).
+
+    Returns (Nel,) with negative values for compressive axial stress, so a
+    compression penalty can thicken the compressed chord.
+    """
+    E_eff = E_min + x_phys ** p * (E - E_min)
+    stress = recover_stress_variable(mesh, u, nu, 1.0, E_eff)  # (Nel,3) sxx,syy,sxy
+    sxx, syy, sxy = stress[:, 0], stress[:, 1], stress[:, 2]
+    center = 0.5 * (sxx + syy)
+    radius = np.sqrt((0.5 * (sxx - syy)) ** 2 + sxy ** 2)
+    s1 = center + radius
+    s2 = center - radius
+    return np.minimum(s1, s2)  # most compressive (negative)
+
+
 def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move,
-                      keepout=None, y_load=None, on_iter=None):
+                      keepout=None, y_load=None, on_iter=None,
+                      compression_penalty=0.0):
     """SIMP + OC. Returns (rho, compliance_history).
 
     Simply-supported with a unit downward patch load at center. y_load=None
     means the top edge; y_load=0.0 loads the deck (through-truss). keepout =
     (x0, x1, y0, y1) in mm: elements whose center lies inside are forced to
-    void (e.g. a 60x60 piston opening above the deck). on_iter(x_phys, it) is
-    called after each iteration for live snapshots.
+    void. on_iter(x_phys, it) is called after each iteration. compression_penalty
+    > 0 thickens compression members (adds a term to the sensitivity that keeps
+    more material where axial compressive stress is high), which helps buckling.
     """
     nel = mesh.elements.shape[0]
     n_dof = 2 * mesh.nodes.shape[0]
@@ -105,6 +129,15 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move,
         ue = u[dofs]  # (Nel, 8)
         ce = np.einsum("ei,ij,ej->e", ue, Ke0, ue)
         dc = -p * x_phys ** (p - 1) * (E - E_min) * ce
+
+        # compression penalty: keep material where axial compressive stress is
+        # high (thickens the compression chord against buckling). sig_c is
+        # negative where compressed; add to make dc more negative there. Guard
+        # against a singular matrix from over-penalizing a sparse field.
+        if compression_penalty > 0.0:
+            sig_c = _axial_compression(mesh, u, nu, x_phys, p, E_min, E)
+            dc = dc + compression_penalty * sig_c * ce * x_phys
+
         dc = np.asarray(H @ dc).ravel() / Hs  # sensitivity filter
 
         x = _oc_update(x, dc, volfrac, move, nel)

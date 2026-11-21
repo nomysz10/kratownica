@@ -6,6 +6,7 @@ from truss.verify import (
     euler_critical_load,
     evaluate_shape,
     member_axial_force,
+    member_buckling_load,
 )
 
 
@@ -30,6 +31,18 @@ def test_compression_buckling_uses_brace_spacing():
     # grubsze H dramatycznie poprawia: H=6 -> I = w*6^3/12 = 180 -> ~497 N
     pcr6 = compression_buckling_load(width=w, height=6.0, E=E, brace_spacing=brace)
     assert abs(pcr6 - 497.7) < 2.0
+
+
+def test_member_buckling_checks_both_axes():
+    # w=5, H=7, L=246, brace=50, E=2800
+    # w płaszczyźnie: I = H*w^3/12 = 7*125/12 = 72.9 -> Pcr_in = pi^2*E*I/246^2 ~ 33 N
+    # poza płaszczyzną: I = w*H^3/12 = 5*343/12 = 142.9 -> Pcr_out ~ 1580 N
+    p_in, p_out = member_buckling_load(width=5.0, height=7.0, member_length=246.0,
+                                       brace_spacing=50.0, E=2800.0)
+    assert abs(p_in - 33.3) < 2.0
+    assert abs(p_out - 1580.0) < 60.0
+    # słabszy jest tryb w płaszczyźnie (cienki, długi pas)
+    assert p_in < p_out
 
 
 def test_member_axial_force():

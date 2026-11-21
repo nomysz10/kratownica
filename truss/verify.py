@@ -95,6 +95,19 @@ def compression_buckling_load(width, height, E, brace_spacing):
     return np.pi ** 2 * E * I / brace_spacing ** 2
 
 
+def member_buckling_load(width, height, member_length, brace_spacing, E):
+    """Buckling loads (N) for both axes: (in_plane, out_of_plane).
+
+    In-plane buckling (bows within the print plane): I = height*width^3/12,
+    length = the member's own length. Out-of-plane (bows across the print
+    plane): I = width*height^3/12, length = transverse-brace spacing. The
+    governing mode is the SMALLER of the two.
+    """
+    p_in = np.pi ** 2 * E * (height * width ** 3 / 12.0) / member_length ** 2
+    p_out = np.pi ** 2 * E * (width * height ** 3 / 12.0) / brace_spacing ** 2
+    return p_in, p_out
+
+
 def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection,
                    load_patch=LOAD_PATCH, y_load=None, brace_spacing=100.0):
     """Load limits (N) and mass (g) for a thresholded shape.
@@ -133,13 +146,17 @@ def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_defl
         for pt in m.points[:: max(1, len(m.points) // 8)]:
             e = int(np.argmin(np.linalg.norm(centers - pt, axis=1)))
             n_unit = min(n_unit, member_axial_force(axis, stress[e], m.width, H))
-        p_cr = compression_buckling_load(m.width, H, E, brace_spacing)
+        p_cr_in, p_cr_out = member_buckling_load(
+            m.width, H, m.length, brace_spacing, E)
+        p_cr = min(p_cr_in, p_cr_out)
         member_data.append({
             "points": m.points,
             "width": m.width,
             "length": m.length,
             "n_unit": n_unit,
             "p_cr": p_cr,
+            "p_cr_in": p_cr_in,
+            "p_cr_out": p_cr_out,
             "is_compression": n_unit < 0.0,
         })
         if n_unit < 0.0:  # compression
