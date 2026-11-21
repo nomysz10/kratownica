@@ -36,10 +36,10 @@ def main():
 
     def on_case_done(res):
         if res is None:
-            print("  (pominięto)")
+            print("  (pominięto)", flush=True)
             return
         print(f"  D={res.D:.1f} H={res.H:.1f} -> p_max={res.p_max:.1f} N, "
-              f"masa={res.mass_g:.1f} g, {res.p_max/res.mass_g:.2f} N/g")
+              f"masa={res.mass_g:.1f} g, {res.p_max/res.mass_g:.2f} N/g", flush=True)
         if best_box["res"] is None or (res.p_max / res.mass_g) > (best_box["res"].p_max / best_box["res"].mass_g):
             best_box["res"] = res
             try:
@@ -48,7 +48,7 @@ def main():
                 pass
 
     print(f"Optymalizacja: span={args.span}, masa<={args.mass} g, ugięcie<={args.deflection} mm, "
-          f"workers={args.workers}")
+          f"workers={args.workers}", flush=True)
     result = run_optimization(
         span=args.span, max_mass_g=args.mass, max_deflection=args.deflection,
         d_range=C.D_RANGE, h_range=C.H_RANGE, el_size=args.el_size,
@@ -57,13 +57,13 @@ def main():
     )
 
     if result is None:
-        print("Brak wykonalnego rozwiązania.")
+        print("Brak wykonalnego rozwiązania.", flush=True)
         return
 
     paths = write_report(result, args.out)
-    print(f"P_max = {result.p_max:.2f} N (D={result.D:.2f}, H={result.H:.2f}, masa={result.mass_g:.2f} g)")
+    print(f"P_max = {result.p_max:.2f} N (D={result.D:.2f}, H={result.H:.2f}, masa={result.mass_g:.2f} g)", flush=True)
     for k, v in paths.items():
-        print(f"{k}: {v}")
+        print(f"{k}: {v}", flush=True)
 
     if args.gif:
         _make_gif(args, result, paths)
@@ -78,7 +78,7 @@ def _make_gif(args, result, paths):
     def on_iter(x_phys, _it):
         frames.append(x_phys.reshape(mesh.ny, mesh.nx).copy())
 
-    print(f"Generowanie GIF (D={result.D}, H={result.H})...")
+    print(f"Generowanie GIF (D={result.D}, H={result.H})...", flush=True)
     topology_optimize(
         mesh, C.E, C.NU, volfrac,
         p=C.SIMP_P, rmin=max(C.FILTER_RMIN, 1.5 * args.el_size),
@@ -88,7 +88,7 @@ def _make_gif(args, result, paths):
     )
     gif_path = os.path.join(args.out, "powstawanie.gif")
     animate_simp(frames, (mesh.ny, mesh.nx), args.el_size, gif_path)
-    print(f"GIF: {gif_path}")
+    print(f"GIF: {gif_path}", flush=True)
 
 
 if __name__ == "__main__":
