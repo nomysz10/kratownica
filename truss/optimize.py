@@ -52,7 +52,12 @@ def _eval_case(case):
     deck_load = y_load is not None and y_load == 0.0
     deck_rows = 1  # jezdnia = osobny cienki element wklejany (nie dotyczy go 4 mm)
     if deck_load:
-        # jezdnia (deck) — zawsze obecna, łączy obciążenie z podporami
+        binary[:deck_rows, :] = True
+    binary = keep_largest_component(binary)
+
+    # enforce 4 mm min width on the COARSE grid (closing below never thins)
+    binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
+    if deck_load:
         binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
 
@@ -69,21 +74,11 @@ def _eval_case(case):
             return None
         mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
 
-    # fillet + refine: upscale+smooth so stress at joints is resolved
+    # fillet + refine: upscale + closing (extensive — never removes/thins)
     fine = smooth_binary(binary, factor=smooth_factor)
     el_fine = el_size / smooth_factor
     if deck_load:
         fine[:deck_rows * smooth_factor, :] = True  # solid deck in fine grid too
-
-    # enforce 4 mm min width on the TRUSS (above the thin deck), AFTER smoothing,
-    # so fillets do not thin members below the minimum. Bounded mass re-trim.
-    truss_sl = slice(deck_rows * smooth_factor, None) if deck_load else slice(None)
-    for _ in range(6):
-        fine[truss_sl] = enforce_min_width(fine[truss_sl], el_fine, C.MIN_WIDTH)
-        mass_f = fine.sum() * el_fine ** 2 * H * C.RHO_PLA
-        if mass_f <= max_mass_g:
-            break
-        fine[truss_sl] = binary_erosion(fine[truss_sl])
 
     mesh_fine = make_rect_mesh(span, D, el_fine)
     r = evaluate_shape(

@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.ndimage import distance_transform_edt, gaussian_filter, zoom
-from skimage.morphology import binary_dilation, skeletonize
+from scipy.ndimage import distance_transform_edt, zoom
+from skimage.morphology import binary_closing, binary_dilation, disk, skeletonize
 from skimage.measure import find_contours, label, regionprops
 
 
@@ -53,19 +53,18 @@ def extract_contours(binary, pixel_size):
     return [np.column_stack([p[:, 1], p[:, 0]]) * pixel_size for p in polys]
 
 
-def smooth_binary(binary, factor=4, sigma=None):
-    """Upscale + Gaussian-smooth + re-threshold a binary mask.
+def smooth_binary(binary, factor=4, radius=None):
+    """Upscale (nearest) + morphological closing to round corners.
 
-    Rounds sharp corners into fillets (so stress at joints is not a mesh
-    artifact) and returns a (factor*ny, factor*nx) boolean mask. sigma is in
-    fine-pixel units; default factor/2 gives a radius of ~half an input pixel.
+    Closing is extensive (result ⊇ input), so it NEVER removes material —
+    unlike Gaussian blur + threshold, which thins and can drop thin members.
+    radius is the fillet radius in fine pixels; default factor/2.
     """
-    b = np.asarray(binary, dtype=float)
-    up = zoom(b, factor, order=1)
-    if sigma is None:
-        sigma = factor / 2.0
-    sm = gaussian_filter(up, sigma)
-    return sm >= 0.5
+    b = np.asarray(binary, dtype=bool)
+    up = zoom(b, factor, order=0)  # nearest: exact material, no interpolation
+    if radius is None:
+        radius = int(round(factor / 2.0))
+    return binary_closing(up, disk(radius))
 
 
 @dataclass

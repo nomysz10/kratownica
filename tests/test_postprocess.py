@@ -47,8 +47,18 @@ def test_smooth_binary_upscales_and_rounds():
     img[25:35, 25:35] = True        # blok 10×10, z marginesem od brzegu
     out = smooth_binary(img, factor=4)
     assert out.shape == (240, 240)
-    # fillets (zaokrąglenie) lekko zmieniają pole; nie może się rozjechać
     ratio = out.sum() / (4.0 * 4.0 * 100.0)
-    assert 0.85 < ratio < 1.1
-    # środek pozostaje wypełniony
+    assert 1.0 <= ratio < 1.2        # closing is extensive (never removes)
     assert out[120, 120]
+
+
+def test_smooth_binary_never_removes_material():
+    # cienki pręt 1px (4 mm na el_size=4) MUSI przetrwać wygładzanie
+    img = np.zeros((20, 20), dtype=bool)
+    img[:, 9:10] = True              # pręt 1 px
+    out = smooth_binary(img, factor=4)
+    # każdy wiersz, w którym był materiał, nadal ma materiał
+    assert out.sum() >= 4 * img.sum()  # nic nie zginęło
+    # pręt dalej ciągły w pionie (nie poszatkowany na kawałki)
+    cols = np.where(out.any(axis=0))[0]
+    assert cols.min() <= 9 * 4 and cols.max() >= 9 * 4
