@@ -35,8 +35,9 @@ def main():
     keepout = None
     if args.piston_hole is not None:
         w = args.piston_hole / 2.0
-        # otwór od jezdni (y=0) w górę na szerokość tłoka, przy środku
-        keepout = (args.span / 2.0 - w, args.span / 2.0 + w, 0.0, args.piston_hole)
+        # otwór na tłok: szerokość tłoka, od jezdni w górę (jezdnia = 1 rząd elementów)
+        deck_top = args.el_size
+        keepout = (args.span / 2.0 - w, args.span / 2.0 + w, deck_top, args.piston_hole)
 
     # progress: print + best-so-far PNG after each case
     best_box = {"res": None}
@@ -101,7 +102,8 @@ def _keepout_for(args):
     if args.piston_hole is None:
         return None
     w = args.piston_hole / 2.0
-    return (args.span / 2.0 - w, args.span / 2.0 + w, 0.0, args.piston_hole)
+    deck_top = args.el_size
+    return (args.span / 2.0 - w, args.span / 2.0 + w, deck_top, args.piston_hole)
 
 
 if __name__ == "__main__":

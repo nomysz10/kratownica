@@ -36,9 +36,10 @@ class Result:
     compliance_history: np.ndarray
 
 
-def _eval_case(span, max_mass_g, max_deflection, el_size, max_iter, smooth_factor,
-               mass_mm3, rmin, D, H, keepout, y_load):
+def _eval_case(case):
     """Evaluate one (D, H) combination; returns Result or None."""
+    (span, max_mass_g, max_deflection, el_size, max_iter, smooth_factor,
+     mass_mm3, rmin, D, H, keepout, y_load) = case
     volfrac = min(1.0, mass_mm3 / (span * D * H))
     mesh = make_rect_mesh(span, D, el_size)
     rho, hist = topology_optimize(
@@ -110,7 +111,7 @@ def run_optimization(span, max_mass_g, max_deflection, d_range, h_range, el_size
                     on_case_done(res)
     else:
         for c in cases:
-            res = _eval_case(*c)
+            res = _eval_case(c)
             results.append(res)
             if on_case_done is not None:
                 on_case_done(res)
