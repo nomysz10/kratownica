@@ -24,20 +24,12 @@ def main():
     p.add_argument("--workers", type=int, default=1, help="liczba procesów (D×H równolegle)")
     p.add_argument("--deck-load", action="store_true",
                    help="obciążenie na jezdni (pas dolny, y=0) zamiast pasa górnego")
-    p.add_argument("--piston-hole", type=float, default=None,
-                   help="szerokość otworu na tłok (mm) nad jezdnią; np. 60")
     p.add_argument("--gif", action="store_true", help="zapisz GIF powstawania (najlepszy D,H)")
     args = p.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
 
     y_load = 0.0 if args.deck_load else None
-    keepout = None
-    if args.piston_hole is not None:
-        w = args.piston_hole / 2.0
-        # otwór na tłok: szerokość tłoka, od jezdni w górę (jezdnia = 1 rząd elementów)
-        deck_top = args.el_size
-        keepout = (args.span / 2.0 - w, args.span / 2.0 + w, deck_top, args.piston_hole)
 
     # progress: print + best-so-far PNG after each case
     best_box = {"res": None}
@@ -60,7 +52,7 @@ def main():
         span=args.span, max_mass_g=args.mass, max_deflection=args.deflection,
         d_range=C.D_RANGE, h_range=C.H_RANGE, el_size=args.el_size,
         max_iter=args.max_iter, n_workers=args.workers,
-        keepout=keepout, y_load=y_load, on_case_done=on_case_done,
+        keepout=None, y_load=y_load, on_case_done=on_case_done,
     )
 
     if result is None:
@@ -90,20 +82,12 @@ def _make_gif(args, result, paths):
         mesh, C.E, C.NU, volfrac,
         p=C.SIMP_P, rmin=max(C.FILTER_RMIN, 1.5 * args.el_size),
         max_iter=args.max_iter, move=0.2,
-        keepout=_keepout_for(args), y_load=0.0 if args.deck_load else None,
+        keepout=None, y_load=0.0 if args.deck_load else None,
         on_iter=on_iter,
     )
     gif_path = os.path.join(args.out, "powstawanie.gif")
     animate_simp(frames, (mesh.ny, mesh.nx), args.el_size, gif_path)
     print(f"GIF: {gif_path}")
-
-
-def _keepout_for(args):
-    if args.piston_hole is None:
-        return None
-    w = args.piston_hole / 2.0
-    deck_top = args.el_size
-    return (args.span / 2.0 - w, args.span / 2.0 + w, deck_top, args.piston_hole)
 
 
 if __name__ == "__main__":
