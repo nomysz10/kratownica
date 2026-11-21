@@ -83,12 +83,24 @@ def member_axial_force(axis, stress, width, height):
     return sig_axial * width * height
 
 
+def compression_buckling_load(width, height, E, brace_spacing):
+    """Out-of-plane Euler buckling load (N) of a compression member.
+
+    Buckling length is the transverse-bracing spacing (lateral supports), not
+    the short in-plane member segment. Weak axis is min(width,height)^3*max/12,
+    so the out-of-plane height H enters as H^3 — thick H greatly helps.
+    """
+    return euler_critical_load(width, height, brace_spacing, E)
+
+
 def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection,
-                   load_patch=LOAD_PATCH, y_load=None):
+                   load_patch=LOAD_PATCH, y_load=None, brace_spacing=100.0):
     """Load limits (N) and mass (g) for a thresholded shape.
 
     Returns dict with mass_g, deflection_at_1N, p_ugiecie, p_naprezenie,
     p_wyboczenie, p_max, breakdown, and visualization fields (u, vm, members).
+    brace_spacing = lateral-support (transverse bracing) spacing for out-of-
+    plane buckling of compression members.
     """
     b = np.asarray(binary, dtype=bool)
     u, vm = simulate_binary_shape(mesh, b, E, nu, H, load=1.0, load_patch=load_patch,
@@ -119,7 +131,7 @@ def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_defl
         for pt in m.points[:: max(1, len(m.points) // 8)]:
             e = int(np.argmin(np.linalg.norm(centers - pt, axis=1)))
             n_unit = min(n_unit, member_axial_force(axis, stress[e], m.width, H))
-        p_cr = euler_critical_load(m.width, H, m.length, E)
+        p_cr = compression_buckling_load(m.width, H, E, brace_spacing)
         member_data.append({
             "points": m.points,
             "width": m.width,

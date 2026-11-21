@@ -1,7 +1,12 @@
 import numpy as np
 
 from truss.mesh import make_rect_mesh
-from truss.verify import euler_critical_load, evaluate_shape, member_axial_force
+from truss.verify import (
+    compression_buckling_load,
+    euler_critical_load,
+    evaluate_shape,
+    member_axial_force,
+)
 
 
 def test_euler_weak_axis():
@@ -14,6 +19,17 @@ def test_euler_in_plane_weak_axis():
     # w=4, H=8, L=100, E=2800: H>w -> I = H*w^3/12 = 42.667 -> Pcr = 117.92 N
     pcr = euler_critical_load(width=4.0, height=8.0, length=100.0, E=2800.0)
     assert abs(pcr - 117.92) < 0.5
+
+
+def test_compression_buckling_uses_brace_spacing():
+    # wyboczenie boczne pasa ściskanego liczone na rozstawie stężeń (np. 100 mm),
+    # a nie na krótkim odcinku w płaszczyźnie -> H wchodzi z H^3
+    w, H, E, brace = 10.0, 4.0, 2800.0, 100.0
+    pcr = compression_buckling_load(width=w, height=H, E=E, brace_spacing=brace)
+    assert abs(pcr - 147.39) < 0.5
+    # grubsze H dramatycznie poprawia: H=6 -> I = w*6^3/12 = 180 -> ~497 N
+    pcr6 = compression_buckling_load(width=w, height=6.0, E=E, brace_spacing=brace)
+    assert abs(pcr6 - 497.7) < 2.0
 
 
 def test_member_axial_force():

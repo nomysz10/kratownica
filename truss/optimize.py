@@ -48,6 +48,10 @@ def _eval_case(case):
         keepout=keepout, y_load=y_load,
     )
     binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
+    if y_load is not None and y_load == 0.0:
+        # jezdnia (deck) is a solid plate at the bottom — always present, so
+        # the deck load stays connected to the supports
+        binary[0, :] = True
     binary = keep_largest_component(binary)
     binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
     binary = keep_largest_component(binary)
@@ -68,7 +72,7 @@ def _eval_case(case):
     r = evaluate_shape(
         mesh_fine, fine, el_fine, C.E, C.NU, H,
         C.SIGMA_ALLOW, C.SAFETY_FACTOR, max_deflection,
-        load_patch=C.LOAD_PATCH, y_load=y_load,
+        load_patch=C.LOAD_PATCH, y_load=y_load, brace_spacing=C.BRACE_SPACING,
     )
     return Result(
         D=D, H=H, el_size=el_fine, rho=rho, binary=fine, mesh=mesh_fine,

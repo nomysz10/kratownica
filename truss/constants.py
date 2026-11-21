@@ -20,8 +20,11 @@ LOAD_PATCH = 60.0       # mm (piston is 60 x 60 mm)
 SUPPORT_PATCH = 15.0    # mm (bearing at supports)
 
 # Design-domain sweep ranges
-D_RANGE = (40.0, 200.0)  # mm (truss depth; up to 200 mm allowed)
-H_RANGE = (3.0, 8.0)     # mm (constant out-of-plane height)
+D_RANGE = (60.0, 200.0)  # mm (truss depth)
+H_RANGE = (7.0, 7.0)     # mm (fixed out-of-plane height for final shape)
+
+# Transverse bracing
+BRACE_SPACING = 100.0   # mm (lateral-support spacing for out-of-plane buckling)
 
 # SIMP optimization
 SIMP_P = 3.0
