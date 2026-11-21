@@ -48,11 +48,15 @@ def density_filter(x, mesh, rmin):
     return np.asarray(H @ x).ravel() / Hs
 
 
-def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
+def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move,
+                      keepout=None, y_load=None, on_iter=None):
     """SIMP + OC. Returns (rho, compliance_history).
 
-    Simply-supported with patch supports and a unit downward patch load at
-    center of the top edge.
+    Simply-supported with a unit downward patch load at center. y_load=None
+    means the top edge; y_load=0.0 loads the deck (through-truss). keepout =
+    (x0, x1, y0, y1) in mm: elements whose center lies inside are forced to
+    void (e.g. a 60x60 piston opening above the deck). on_iter(x_phys, it) is
+    called after each iteration for live snapshots.
     """
     nel = mesh.elements.shape[0]
     n_dof = 2 * mesh.nodes.shape[0]
@@ -67,16 +71,29 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
     H = _filter_matrix(mesh, rmin)
     Hs = np.asarray(H.sum(axis=1)).ravel()
 
-    # boundary conditions and load (top-edge patch load at center, point supports)
+    # keepout mask
+    if keepout is not None:
+        centers = mesh.nodes[mesh.elements].mean(axis=1)
+        x0, x1, y0, y1 = keepout
+        kmask = ((centers[:, 0] >= x0) & (centers[:, 0] <= x1)
+                 & (centers[:, 1] >= y0) & (centers[:, 1] <= y1))
+    else:
+        kmask = None
+
+    # boundary conditions and load (patch load at center; y_load=None -> top edge)
     fixed = simply_supported_dofs(mesh)
-    f = center_patch_load(mesh, LOAD_PATCH, 1.0)
+    f = center_patch_load(mesh, LOAD_PATCH, 1.0, y_load=y_load)
 
     x = np.full(nel, volfrac)
+    if kmask is not None:
+        x[kmask] = 0.0
     E_min = 1e-9 * E
     history = []
 
     for _ in range(max_iter):
         x_phys = np.asarray(H @ x).ravel() / Hs
+        if kmask is not None:
+            x_phys[kmask] = 0.0
         E_eff = E_min + x_phys ** p * (E - E_min)
 
         data = (E_eff[:, None, None] * Ke0[None, :, :]).ravel()
@@ -91,8 +108,14 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
         dc = np.asarray(H @ dc).ravel() / Hs  # sensitivity filter
 
         x = _oc_update(x, dc, volfrac, move, nel)
+        if kmask is not None:
+            x[kmask] = 0.0
+        if on_iter is not None:
+            on_iter(x_phys, len(history) - 1)
 
     x_phys = np.asarray(H @ x).ravel() / Hs
+    if kmask is not None:
+        x_phys[kmask] = 0.0
     return x_phys, np.array(history)
 
 

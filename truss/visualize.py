@@ -84,3 +84,28 @@ def plot_buckling(path, mesh, members, u, scale, p_max, sf, title):
     ax.set_title(title)
     fig.savefig(path, dpi=120)
     plt.close(fig)
+
+
+def animate_simp(frames, binary_shape, el_size, path, duration=4.0):
+    """Assemble a GIF of the density field evolving (frames: list of (ny,nx))."""
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    if not frames:
+        return
+    ny, nx = binary_shape
+    fig, ax = plt.subplots(figsize=(12, 3))
+    im = ax.imshow(np.zeros((ny, nx)), cmap="gray_r", origin="lower", vmin=0.0, vmax=1.0,
+                   extent=[0, nx * el_size, 0, ny * el_size])
+    ax.set_xlabel("span [mm]")
+    ax.set_ylabel("depth [mm]")
+    ax.set_title("iteracja 0")
+    fig.colorbar(im, ax=ax, label="gęstość")
+
+    def update(i):
+        im.set_array(frames[i])
+        ax.set_title(f"iteracja {i}")
+        return [im]
+
+    ani = FuncAnimation(fig, update, frames=len(frames), interval=int(duration * 1000 / len(frames)))
+    ani.save(path, writer=PillowWriter(fps=len(frames) / duration))
+    plt.close(fig)

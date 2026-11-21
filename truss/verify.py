@@ -84,14 +84,15 @@ def member_axial_force(axis, stress, width, height):
 
 
 def evaluate_shape(mesh, binary, pixel_size, E, nu, H, sigma_allow, sf, max_deflection,
-                   load_patch=LOAD_PATCH):
+                   load_patch=LOAD_PATCH, y_load=None):
     """Load limits (N) and mass (g) for a thresholded shape.
 
     Returns dict with mass_g, deflection_at_1N, p_ugiecie, p_naprezenie,
     p_wyboczenie, p_max, breakdown, and visualization fields (u, vm, members).
     """
     b = np.asarray(binary, dtype=bool)
-    u, vm = simulate_binary_shape(mesh, b, E, nu, H, load=1.0, load_patch=load_patch)
+    u, vm = simulate_binary_shape(mesh, b, E, nu, H, load=1.0, load_patch=load_patch,
+                                  y_load=y_load)
 
     delta = center_deflection(u, mesh, mesh.lx / 2.0)
     p_ugiecie = max_deflection / delta
