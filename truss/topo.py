@@ -103,7 +103,8 @@ def topology_optimize(mesh, E, nu, volfrac, *, p, rmin, max_iter, move):
 
         x = _oc_update(x, dc, volfrac, move, nel)
 
-    return x, np.array(history)
+    x_phys = np.asarray(H @ x).ravel() / Hs
+    return x_phys, np.array(history)
 
 
 def _oc_update(x, dc, volfrac, move, nel):
