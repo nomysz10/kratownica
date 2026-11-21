@@ -24,7 +24,7 @@ D_RANGE = (60.0, 200.0)  # mm (truss depth)
 H_RANGE = (7.0, 7.0)     # mm (fixed out-of-plane height for final shape)
 
 # Transverse bracing
-BRACE_SPACING = 100.0   # mm (lateral-support spacing for out-of-plane buckling)
+BRACE_SPACING = 50.0    # mm (lateral-support spacing for out-of-plane buckling)
 
 # SIMP optimization
 SIMP_P = 3.0
