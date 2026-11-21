@@ -11,6 +11,7 @@ from truss.mesh import make_rect_mesh
 from truss.postprocess import (
     enforce_min_width,
     keep_largest_component,
+    min_feature_width,
     smooth_binary,
     threshold_binary,
 )
@@ -49,14 +50,10 @@ def _eval_case(case):
     )
     binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
     deck_load = y_load is not None and y_load == 0.0
+    deck_rows = 1  # jezdnia = osobny cienki element wklejany (nie dotyczy go 4 mm)
     if deck_load:
-        # jezdnia (deck) is a solid plate at the bottom — always present, so
-        # the deck load stays connected to the supports
-        binary[0, :] = True
-    binary = keep_largest_component(binary)
-    binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
-    if deck_load:
-        binary[0, :] = True
+        # jezdnia (deck) — zawsze obecna, łączy obciążenie z podporami
+        binary[:deck_rows, :] = True
     binary = keep_largest_component(binary)
 
     # hard mass constraint: erode if the min-width dilation overshot
@@ -64,10 +61,10 @@ def _eval_case(case):
     while mass_g > max_mass_g:
         binary = binary_erosion(binary)
         if deck_load:
-            binary[0, :] = True   # protect the deck from erosion
+            binary[:deck_rows, :] = True   # protect the deck from erosion
         binary = keep_largest_component(binary)
         if deck_load:
-            binary[0, :] = True
+            binary[:deck_rows, :] = True
         if not binary.any():
             return None
         mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
@@ -75,6 +72,19 @@ def _eval_case(case):
     # fillet + refine: upscale+smooth so stress at joints is resolved
     fine = smooth_binary(binary, factor=smooth_factor)
     el_fine = el_size / smooth_factor
+    if deck_load:
+        fine[:deck_rows * smooth_factor, :] = True  # solid deck in fine grid too
+
+    # enforce 4 mm min width on the TRUSS (above the thin deck), AFTER smoothing,
+    # so fillets do not thin members below the minimum. Bounded mass re-trim.
+    truss_sl = slice(deck_rows * smooth_factor, None) if deck_load else slice(None)
+    for _ in range(6):
+        fine[truss_sl] = enforce_min_width(fine[truss_sl], el_fine, C.MIN_WIDTH)
+        mass_f = fine.sum() * el_fine ** 2 * H * C.RHO_PLA
+        if mass_f <= max_mass_g:
+            break
+        fine[truss_sl] = binary_erosion(fine[truss_sl])
+
     mesh_fine = make_rect_mesh(span, D, el_fine)
     r = evaluate_shape(
         mesh_fine, fine, el_fine, C.E, C.NU, H,
