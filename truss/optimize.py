@@ -48,19 +48,26 @@ def _eval_case(case):
         keepout=keepout, y_load=y_load,
     )
     binary = threshold_binary(rho, 0.5).reshape(mesh.ny, mesh.nx)
-    if y_load is not None and y_load == 0.0:
+    deck_load = y_load is not None and y_load == 0.0
+    if deck_load:
         # jezdnia (deck) is a solid plate at the bottom — always present, so
         # the deck load stays connected to the supports
         binary[0, :] = True
     binary = keep_largest_component(binary)
     binary = enforce_min_width(binary, el_size, C.MIN_WIDTH)
+    if deck_load:
+        binary[0, :] = True
     binary = keep_largest_component(binary)
 
     # hard mass constraint: erode if the min-width dilation overshot
     mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
     while mass_g > max_mass_g:
         binary = binary_erosion(binary)
+        if deck_load:
+            binary[0, :] = True   # protect the deck from erosion
         binary = keep_largest_component(binary)
+        if deck_load:
+            binary[0, :] = True
         if not binary.any():
             return None
         mass_g = binary.sum() * el_size ** 2 * H * C.RHO_PLA
